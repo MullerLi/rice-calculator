@@ -12,9 +12,6 @@
     input { width: 100%; padding: 0.5em; }
     .result { background: #eef; padding: 1em; border-radius: 8px; font-size: 1.1em; }
     .result strong.important { font-size: 1.3em; color: #d32f2f; }
-    table { width: 100%; border-collapse: collapse; margin-top: 1em; }
-    th, td { border: 1px solid #ccc; padding: 0.5em; text-align: center; }
-    th { background-color: #f0f0f0; }
     button { margin-top: 1em; padding: 0.5em 1em; }
   </style>
 </head>
@@ -23,11 +20,12 @@
 
   <div class="section">
     <div class="flex-row">
-      <div class="flex-col"><label for="kan">收成（割）</label><input type="number" id="kan" value="10" step="0.1"></div>
+      <div class="flex-col"><label for="kan">收成（割）<span title="每分地的收成量，單位為割">ℹ️</span></label><input type="number" id="kan" value="10" step="0.1"></div>
       <div class="flex-col"><label for="yieldPerHa">濕穀(公斤/公頃)</label><input type="number" id="yieldPerHa"></div>
       <div class="flex-col"><label for="dryYieldPerHa">乾穀(公斤/公頃)</label><input type="number" id="dryYieldPerHa"></div>
       <div class="flex-col"><label for="moisture">含水率（%）</label><input type="number" id="moisture" value="30" step="0.1"></div>
       <div class="flex-col"><label for="price">稻穀價格(元/公斤)</label><input type="number" id="price" value="26"></div>
+      <div class="flex-col"><label for="millingRate">完整米率（%）<span title="稻穀與白米之間的換算係數，例如60%表示100公斤稻穀可產生60公斤白米">ℹ️</span></label><input type="number" id="millingRate" value="65" step="0.1" min="0" max="100"></div>
       <div class="flex-col"><label for="ricePrice">白米售價(元/公斤)</label><input type="number" id="ricePrice" value="45"></div>
     </div>
   </div>
@@ -67,111 +65,146 @@
     <div><strong>每公頃淨利：</strong><span id="profit">-</span> 元</div>
     <div><strong>白米可煮飯量：</strong><span id="riceBowlCount">-</span> 碗飯</div>
     <div><strong>估算白米粒數：</strong><span id="riceGrainCount">-</span> 粒</div>
-    <button onclick="downloadCSV()">導出報表（CSV）</button>
+    <button onclick="RiceCalculator.downloadCSV()">導出報表（CSV）</button>
   </div>
 
   <script>
-    const weightPerKan = 60;
-    const areaPerHaInFen = 100;
-    const moistureConversionRates = {
-      24: 0.83, 25: 0.83, 26: 0.82, 27: 0.81, 28: 0.80,
-      29: 0.79, 30: 0.78, 31: 0.77, 32: 0.76, 33: 0.75,
-      34: 0.73, 35: 0.71
+    const RiceCalculator = {
+      constants: {
+        weightPerKan: 60,
+        areaPerHaInFen: 100,
+        moistureConversionRates: {
+          24: 0.83, 25: 0.83, 26: 0.82, 27: 0.81, 28: 0.80,
+          29: 0.79, 30: 0.78, 31: 0.77, 32: 0.76, 33: 0.75,
+          34: 0.73, 35: 0.71
+        },
+        bowlPerKg: 14,
+        grainWeight: 0.0225 / 1000 // in kg
+      },
+      inputIds: {
+        kan: 'kan',
+        moisture: 'moisture',
+        yieldPerHa: 'yieldPerHa',
+        dryYieldPerHa: 'dryYieldPerHa',
+        price: 'price',
+        millingRate: 'millingRate',
+        ricePrice: 'ricePrice',
+        fert: ['fert1', 'fert2', 'fert3', 'fert4'],
+        farm: ['farm1', 'farm2', 'farm3', 'farm4', 'farm5'],
+        seedlingNum: 'seedlingNum',
+        seedlingPrice: 'seedlingPrice'
+      },
+      resultIds: {
+        costPerKg: 'costPerKg',
+        income: 'income',
+        profit: 'profit',
+        riceBowlCount: 'riceBowlCount',
+        riceGrainCount: 'riceGrainCount'
+      },
+      getFloat(id) {
+        const val = parseFloat(document.getElementById(id).value);
+        return isNaN(val) ? 0 : val;
+      },
+      sumInputs(ids) {
+        return ids.reduce((sum, id) => sum + this.getFloat(id), 0);
+      },
+      updateYields() {
+        const kan = this.getFloat(this.inputIds.kan);
+        const moisture = this.getFloat(this.inputIds.moisture);
+        const convRate = this.constants.moistureConversionRates[Math.round(moisture)] || 0.78;
+        const wetWeight = kan * this.constants.weightPerKan * this.constants.areaPerHaInFen;
+        const dryWeight = wetWeight * convRate;
+        document.getElementById(this.inputIds.yieldPerHa).value = Math.round(wetWeight);
+        document.getElementById(this.inputIds.dryYieldPerHa).value = Math.round(dryWeight);
+      },
+      updateResults() {
+        const dryYield = this.getFloat(this.inputIds.dryYieldPerHa);
+        const price = this.getFloat(this.inputIds.price);
+        const millingRate = this.getFloat(this.inputIds.millingRate) / 100;
+        const fertCost = this.sumInputs(this.inputIds.fert);
+        const farmCost = this.sumInputs(this.inputIds.farm);
+        const seedlingCost = this.getFloat(this.inputIds.seedlingNum) * this.getFloat(this.inputIds.seedlingPrice) * this.constants.areaPerHaInFen;
+        const totalCost = fertCost + farmCost + seedlingCost;
+        const income = dryYield * price;
+        const profit = income - totalCost;
+        const riceYield = dryYield * millingRate;
+        const ricePerBowl = riceYield * this.constants.bowlPerKg;
+        const grainCount = riceYield / this.constants.grainWeight;
+
+        if (dryYield > 0) {
+          const costPerKg = totalCost / dryYield;
+          document.getElementById(this.resultIds.costPerKg).textContent = costPerKg.toFixed(2);
+          document.getElementById(this.resultIds.income).textContent = income.toFixed(0);
+          document.getElementById(this.resultIds.profit).textContent = profit.toFixed(0);
+          document.getElementById(this.resultIds.riceBowlCount).textContent = Math.round(ricePerBowl).toLocaleString();
+          document.getElementById(this.resultIds.riceGrainCount).textContent = Math.round(grainCount).toLocaleString();
+        } else {
+          Object.values(this.resultIds).forEach(id => {
+            document.getElementById(id).textContent = '-';
+          });
+        }
+      },
+      downloadCSV() {
+        const headers = ['項目', '數值'];
+        const rows = [
+          ['收成（割）', this.getFloat(this.inputIds.kan)],
+          ['濕穀(公斤/公頃)', this.getFloat(this.inputIds.yieldPerHa)],
+          ['乾穀(公斤/公頃)', this.getFloat(this.inputIds.dryYieldPerHa)],
+          ['含水率（%）', this.getFloat(this.inputIds.moisture)],
+          ['稻穀價格(元/公斤)', this.getFloat(this.inputIds.price)],
+          ['完整米率（%）', this.getFloat(this.inputIds.millingRate)],
+          ['白米售價(元/公斤)', this.getFloat(this.inputIds.ricePrice)],
+          ['肥料費（元）', this.sumInputs(this.inputIds.fert)],
+          ['代耕費（元）', this.sumInputs(this.inputIds.farm)],
+          ['秧苗費（元）', this.getFloat(this.inputIds.seedlingNum) * this.getFloat(this.inputIds.seedlingPrice) * this.constants.areaPerHaInFen],
+          ['總成本（元）', this.sumInputs(this.inputIds.fert) + this.sumInputs(this.inputIds.farm) + (this.getFloat(this.inputIds.seedlingNum) * this.getFloat(this.inputIds.seedlingPrice) * this.constants.areaPerHaInFen)],
+          ['每公斤生產成本', document.getElementById(this.resultIds.costPerKg).textContent],
+          ['每公頃收入', document.getElementById(this.resultIds.income).textContent],
+          ['每公頃淨利', document.getElementById(this.resultIds.profit).textContent],
+          ['可煮出碗飯數', document.getElementById(this.resultIds.riceBowlCount).textContent],
+          ['估算白米粒數', document.getElementById(this.resultIds.riceGrainCount).textContent]
+        ];
+        let csvContent = headers.join(',') + '\n';
+        rows.forEach(row => {
+          csvContent += row.join(',') + '\n';
+        });
+        const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+        const link = document.createElement('a');
+        link.href = URL.createObjectURL(blob);
+        link.download = '稻米計算報表.csv';
+        link.click();
+      },
+      init() {
+        const allInputIds = [
+          this.inputIds.kan,
+          this.inputIds.moisture,
+          this.inputIds.yieldPerHa,
+          this.inputIds.dryYieldPerHa,
+          this.inputIds.price,
+          this.inputIds.millingRate,
+          this.inputIds.ricePrice,
+          ...this.inputIds.fert,
+          ...this.inputIds.farm,
+          this.inputIds.seedlingNum,
+          this.inputIds.seedlingPrice
+        ];
+        allInputIds.forEach(id => {
+          const el = document.getElementById(id);
+          if (el) {
+            el.addEventListener('input', () => {
+              if (id === this.inputIds.kan || id === this.inputIds.moisture) {
+                this.updateYields();
+              }
+              this.updateResults();
+            });
+          }
+        });
+        this.updateYields();
+        this.updateResults();
+      }
     };
 
-    function getFloat(id) {
-      const val = parseFloat(document.getElementById(id).value);
-      return isNaN(val) ? 0 : val;
-    }
-
-    function updateYieldFromKan() {
-      const kan = getFloat('kan');
-      const moisture = getFloat('moisture');
-      const convRate = moistureConversionRates[Math.round(moisture)] || 0.78;
-      const wetWeight = kan * weightPerKan * areaPerHaInFen;
-      const dryWeight = wetWeight * convRate;
-
-      if (document.activeElement.id === 'kan') {
-        document.getElementById('yieldPerHa').value = Math.round(wetWeight);
-        document.getElementById('dryYieldPerHa').value = Math.round(dryWeight);
-      }
-
-      updateCostIncomeProfit();
-    }
-
-    function updateCostIncomeProfit() {
-      const dryYield = getFloat('dryYieldPerHa');
-      const price = getFloat('price');
-      const fert = getFloat('fert1') + getFloat('fert2') + getFloat('fert3') + getFloat('fert4');
-      const farm = getFloat('farm1') + getFloat('farm2') + getFloat('farm3') + getFloat('farm4') + getFloat('farm5');
-      const seedling = getFloat('seedlingNum') * getFloat('seedlingPrice') * areaPerHaInFen;
-      const totalCost = fert + farm + seedling;
-
-      const income = dryYield * price;
-      const profit = income - totalCost;
-
-      const millingRate = 0.65;
-      const riceYield = dryYield * millingRate;
-      const bowlPerKg = 14;
-      const ricePerBowl = riceYield * bowlPerKg;
-      const grainWeight = 0.0225 / 1000;
-      const grainCount = riceYield / grainWeight;
-
-      if (dryYield > 0) {
-        const costPerKg = totalCost / dryYield;
-        document.getElementById('costPerKg').innerText = costPerKg.toFixed(2);
-        document.getElementById('income').innerText = income.toFixed(0);
-        document.getElementById('profit').innerText = profit.toFixed(0);
-        document.getElementById('riceBowlCount').innerText = Math.round(ricePerBowl).toLocaleString();
-        document.getElementById('riceGrainCount').innerText = Math.round(grainCount).toLocaleString();
-      } else {
-        document.getElementById('costPerKg').innerText = '-';
-        document.getElementById('income').innerText = '-';
-        document.getElementById('profit').innerText = '-';
-        document.getElementById('riceBowlCount').innerText = '-';
-        document.getElementById('riceGrainCount').innerText = '-';
-      }
-    }
-
-    function downloadCSV() {
-      const headers = ['項目', '數值'];
-      const rows = [
-        ['收成（割）', getFloat('kan')],
-        ['濕穀(公斤/公頃)', getFloat('yieldPerHa')],
-        ['乾穀(公斤/公頃)', getFloat('dryYieldPerHa')],
-        ['含水率（%）', getFloat('moisture')],
-        ['稻穀價格(元/公斤)', getFloat('price')],
-        ['白米售價(元/公斤)', getFloat('ricePrice')],
-        ['每公斤生產成本', document.getElementById('costPerKg').innerText],
-        ['每公頃收入', document.getElementById('income').innerText],
-        ['每公頃淨利', document.getElementById('profit').innerText],
-        ['可煮出碗飯數', document.getElementById('riceBowlCount').innerText],
-        ['估算白米粒數', document.getElementById('riceGrainCount').innerText]
-      ];
-      let csvContent = headers.join(',') + '\\n';
-      rows.forEach(row => {
-        csvContent += row.join(',') + '\\n';
-      });
-      const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
-      const link = document.createElement('a');
-      link.href = URL.createObjectURL(blob);
-      link.download = '稻米計算報表.csv';
-      link.click();
-    }
-
-    ['kan', 'moisture', 'yieldPerHa', 'dryYieldPerHa', 'price', 'ricePrice',
-     'fert1', 'fert2', 'fert3', 'fert4',
-     'farm1', 'farm2', 'farm3', 'farm4', 'farm5',
-     'seedlingNum', 'seedlingPrice']
-      .forEach(id => {
-        const el = document.getElementById(id);
-        if (el) el.addEventListener('input', () => {
-          updateYieldFromKan();
-          updateCostIncomeProfit();
-        });
-      });
-
-    updateYieldFromKan();
+    RiceCalculator.init();
   </script>
 </body>
 </html>
