@@ -40,30 +40,33 @@
   </div>
 
   <div class="section">
-    <h3>肥料費（元）</h3>
+    <h3>資材費（元）</h3>
     <div class="flex-row">
-      <div class="flex-col"><label>基肥</label><input type="number" id="fert1"></div>
-      <div class="flex-col"><label>一追</label><input type="number" id="fert2"></div>
-      <div class="flex-col"><label>二追</label><input type="number" id="fert3"></div>
-      <div class="flex-col"><label>穗肥</label><input type="number" id="fert4"></div>
+      <div class="flex-col"><label>基肥</label><input type="number" id="fert1" value="350"></div>
+      <div class="flex-col"><label>一追</label><input type="number" id="fert2" value="350"></div>
+      <div class="flex-col"><label>二追</label><input type="number" id="fert3" value="350"></div>
+      <div class="flex-col"><label>穗肥</label><input type="number" id="fert4" value="350"></div>
+      <div class="flex-col"><label>農藥費(含族草劑)</label><input type="number" id="fert5" value="1500"></div>
+
     </div>
   </div>
 
   <div class="section">
     <h3>代耕費（元）</h3>
     <div class="flex-row">
-      <div class="flex-col"><label>整地</label><input type="number" id="farm1"></div>
-      <div class="flex-col"><label>插秧</label><input type="number" id="farm2"></div>
-      <div class="flex-col"><label>施肥</label><input type="number" id="farm3"></div>
-      <div class="flex-col"><label>收穫</label><input type="number" id="farm4"></div>
-      <div class="flex-col"><label>烘乾</label><input type="number" id="farm5"></div>
+      <div class="flex-col"><label>整地</label><input type="number" id="farm1" value="1500"></div>
+      <div class="flex-col"><label>插秧</label><input type="number" id="farm2" value="800"></div>
+      <div class="flex-col"><label>施肥</label><input type="number" id="farm3" value="750"></div>
+      <div class="flex-col"><label>噴藥與除草</label><input type="number" id="farm4" value="1500"></div>
+      <div class="flex-col"><label>收穫</label><input type="number" id="farm5" value="1500"></div>
+      <div class="flex-col"><label>烘乾</label><input type="number" id="farm6" value="1500"></div>
     </div>
   </div>
 
   <div class="section">
     <h3>秧苗費</h3>
     <div class="flex-row">
-      <div class="flex-col"><label>秧苗盤數（盤/分地）</label><input type="number" id="seedlingNum" value="260"></div>
+      <div class="flex-col"><label>秧苗盤數（盤/分地）</label><input type="number" id="seedlingNum" value="26"></div>
       <div class="flex-col"><label>每盤價格（元）</label><input type="number" id="seedlingPrice" value="35"></div>
     </div>
   </div>
@@ -98,8 +101,8 @@
         price: 'price',
         millingRate: 'millingRate',
         ricePrice: 'ricePrice',
-        fert: ['fert1', 'fert2', 'fert3', 'fert4'],
-        farm: ['farm1', 'farm2', 'farm3', 'farm4', 'farm5'],
+        fert: ['fert1', 'fert2', 'fert3', 'fert4','fert5'],
+        farm: ['farm1', 'farm2', 'farm3', 'farm4', 'farm5','farm6'],
         seedlingNum: 'seedlingNum',
         seedlingPrice: 'seedlingPrice'
       },
