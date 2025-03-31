@@ -2,21 +2,30 @@
 <html lang="zh-Hant">
 <head>
   <meta charset="UTF-8">
-  <title>稻米收成計算機</title>
+  <title>稻米收益計算機</title>
   <style>
     body { font-family: sans-serif; max-width: 900px; margin: auto; padding: 2em; }
     .section { margin-bottom: 2em; padding: 1em; border: 1px solid #ddd; border-radius: 8px; background: #f9f9f9; }
     .flex-row { display: flex; gap: 1em; flex-wrap: wrap; }
     .flex-col { flex: 1; min-width: 200px; }
-    label, input { display: block; margin-top: 0.5em; }
-    input { width: 100%; padding: 0.5em; }
+    label, input, select { display: block; margin-top: 0.5em; }
+    input, select { width: 100%; padding: 0.5em; }
     .result { background: #eef; padding: 1em; border-radius: 8px; font-size: 1.1em; }
     .result strong.important { font-size: 1.3em; color: #d32f2f; }
     button { margin-top: 1em; padding: 0.5em 1em; }
   </style>
 </head>
 <body>
-  <h1>稻米收成計算機</h1>
+  <h1>稻米收益計算機</h1>
+
+  <!-- 新增收入類型選擇 -->
+  <div class="section">
+    <label for="incomeType">選擇生產者類型：</label>
+    <select id="incomeType">
+      <option value="farmer">農民</option>
+      <option value="mill">碾米廠</option>
+    </select>
+  </div>
 
   <div class="section">
     <div class="flex-row">
@@ -54,17 +63,17 @@
   <div class="section">
     <h3>秧苗費</h3>
     <div class="flex-row">
-      <div class="flex-col"><label>秧苗數（盤/分地）</label><input type="number" id="seedlingNum" value="260"></div>
-      <div class="flex-col"><label>每盤費用（元）</label><input type="number" id="seedlingPrice" value="35"></div>
+      <div class="flex-col"><label>秧苗盤數（盤/分地）</label><input type="number" id="seedlingNum" value="260"></div>
+      <div class="flex-col"><label>每盤價格（元）</label><input type="number" id="seedlingPrice" value="35"></div>
     </div>
   </div>
 
   <div class="result">
-    <div><strong class="important">每公斤生產成本：</strong><span id="costPerKg">-</span> 元／公斤</div>
-    <div><strong>每公頃收入：</strong><span id="income">-</span> 元</div>
-    <div><strong>每公頃淨利：</strong><span id="profit">-</span> 元</div>
-    <div><strong>白米可煮飯量：</strong><span id="riceBowlCount">-</span> 碗飯</div>
-    <div><strong>估算白米粒數：</strong><span id="riceGrainCount">-</span> 粒</div>
+    <div><strong class="important">生產成本(每公斤)：</strong><span id="costPerKg">-</span> 元／公斤</div>
+    <div><strong id="incomeLabel">收入(公頃)：</strong><span id="income">-</span> 元</div>
+    <div><strong id="profitLabel">淨利(公頃)：</strong><span id="profit">-</span> 元</div>
+    <div><strong>可供幾碗飯：</strong><span id="riceBowlCount">-</span> 碗飯</div>
+    <div><strong>生產白米粒數：</strong><span id="riceGrainCount">-</span> 粒</div>
     <button onclick="RiceCalculator.downloadCSV()">導出報表（CSV）</button>
   </div>
 
@@ -118,14 +127,24 @@
         document.getElementById(this.inputIds.dryYieldPerHa).value = Math.round(dryWeight);
       },
       updateResults() {
+        const incomeType = document.getElementById('incomeType').value;
         const dryYield = this.getFloat(this.inputIds.dryYieldPerHa);
         const price = this.getFloat(this.inputIds.price);
         const millingRate = this.getFloat(this.inputIds.millingRate) / 100;
+        const ricePrice = this.getFloat(this.inputIds.ricePrice);
         const fertCost = this.sumInputs(this.inputIds.fert);
         const farmCost = this.sumInputs(this.inputIds.farm);
         const seedlingCost = this.getFloat(this.inputIds.seedlingNum) * this.getFloat(this.inputIds.seedlingPrice) * this.constants.areaPerHaInFen;
         const totalCost = fertCost + farmCost + seedlingCost;
-        const income = dryYield * price;
+
+        let income;
+        if (incomeType === 'farmer') {
+          income = dryYield * price;
+        } else if (incomeType === 'mill') {
+          const riceYield = dryYield * millingRate;
+          income = riceYield * ricePrice - dryYield * price;
+        }
+
         const profit = income - totalCost;
         const riceYield = dryYield * millingRate;
         const ricePerBowl = riceYield * this.constants.bowlPerKg;
@@ -138,6 +157,16 @@
           document.getElementById(this.resultIds.profit).textContent = profit.toFixed(0);
           document.getElementById(this.resultIds.riceBowlCount).textContent = Math.round(ricePerBowl).toLocaleString();
           document.getElementById(this.resultIds.riceGrainCount).textContent = Math.round(grainCount).toLocaleString();
+
+          const incomeLabel = document.getElementById('incomeLabel');
+          const profitLabel = document.getElementById('profitLabel');
+          if (incomeType === 'farmer') {
+            incomeLabel.textContent = '農民收入(元/公頃)：';
+            profitLabel.textContent = '農民淨利(元/公頃)：';
+          } else if (incomeType === 'mill') {
+            incomeLabel.textContent = '碾米廠收入(元/公頃)：';
+            profitLabel.textContent = '碾米廠淨利(元/公頃)：';
+          }
         } else {
           Object.values(this.resultIds).forEach(id => {
             document.getElementById(id).textContent = '-';
@@ -145,9 +174,14 @@
         }
       },
       downloadCSV() {
+        const incomeType = document.getElementById('incomeType').value;
+        const incomeLabel = incomeType === 'farmer' ? '農民收入(元/公頃)' : '碾米廠收入(元/公頃)';
+        const profitLabel = incomeType === 'farmer' ? '農民淨利(元/公頃)' : '碾米廠淨利(元/公頃)';
+
         const headers = ['項目', '數值'];
         const rows = [
-          ['收成（割）', this.getFloat(this.inputIds.kan)],
+          ['收入類型', incomeType === 'farmer' ? '農民收入' : '碾米廠收入'],
+          ['收穫量（割）', this.getFloat(this.inputIds.kan)],
           ['濕穀(公斤/公頃)', this.getFloat(this.inputIds.yieldPerHa)],
           ['乾穀(公斤/公頃)', this.getFloat(this.inputIds.dryYieldPerHa)],
           ['含水率（%）', this.getFloat(this.inputIds.moisture)],
@@ -159,8 +193,8 @@
           ['秧苗費（元）', this.getFloat(this.inputIds.seedlingNum) * this.getFloat(this.inputIds.seedlingPrice) * this.constants.areaPerHaInFen],
           ['總成本（元）', this.sumInputs(this.inputIds.fert) + this.sumInputs(this.inputIds.farm) + (this.getFloat(this.inputIds.seedlingNum) * this.getFloat(this.inputIds.seedlingPrice) * this.constants.areaPerHaInFen)],
           ['每公斤生產成本', document.getElementById(this.resultIds.costPerKg).textContent],
-          ['每公頃收入', document.getElementById(this.resultIds.income).textContent],
-          ['每公頃淨利', document.getElementById(this.resultIds.profit).textContent],
+          [incomeLabel, document.getElementById(this.resultIds.income).textContent],
+          [profitLabel, document.getElementById(this.resultIds.profit).textContent],
           ['可煮出碗飯數', document.getElementById(this.resultIds.riceBowlCount).textContent],
           ['估算白米粒數', document.getElementById(this.resultIds.riceGrainCount).textContent]
         ];
@@ -198,6 +232,9 @@
               this.updateResults();
             });
           }
+        });
+        document.getElementById('incomeType').addEventListener('change', () => {
+          this.updateResults();
         });
         this.updateYields();
         this.updateResults();
